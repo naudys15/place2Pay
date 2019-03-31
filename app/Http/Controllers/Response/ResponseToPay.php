@@ -14,22 +14,26 @@ class ResponseToPay extends Controller
 {
     public function receiveRequest()
     {
-        $auth = new AuthKeys();
-        $placetopay = new PlacetoPay([
-            'login' => $auth::LOGIN_ID,
-            'tranKey' => $auth::SECRET_KEY,
-            'url' => $auth::URL_PLACETOPAY,
-        ]);
-        $response = $placetopay->query(Session::get('requestId'));
-        if ($response->isSuccessful()) {
-            if ($response->status()->isApproved()) {
-                $this->storeInDB($response->status());
-            } else {
-                $this->storeInDB($response->status()); 
+        if (Session::has('requestId')) {
+            $auth = new AuthKeys();
+            $placetopay = new PlacetoPay([
+                'login' => $auth::LOGIN_ID,
+                'tranKey' => $auth::SECRET_KEY,
+                'url' => $auth::URL_PLACETOPAY,
+            ]);
+            $response = $placetopay->query(Session::get('requestId'));
+            if ($response->isSuccessful()) {
+                if ($response->status()->isApproved()) {
+                    $this->storeInDB($response->status());
+                } else {
+                    $this->storeInDB($response->status()); 
+                }
+                $this->storeInCache($response->status());
+                $this->setResponseMessageToView($response->status());
+                $this->flushPreviousResponse();
             }
         }
-        $this->storeInCache($response->status());
-        $this->setResponseMessageToView($response->status());
+        
         return redirect('/');
 
     }
@@ -59,6 +63,12 @@ class ResponseToPay extends Controller
         Session::flash('status',($object->status() == 'APPROVED')?'OK':'FALLO');
         Session::flash('message', $object->message());
         Session::flash('date',date("Y-m-d H:i:s", strtotime($object->date())));
+    }
+
+    public function flushPreviousResponse()
+    {
+        Session::forget('requestId');
+        Session::forget('processUrl');
     }
 }
 
